@@ -1298,7 +1298,7 @@ export const countries = {
 export function getRandomStartOptions(count: number = 3): { countries: string[]; teams: string[] } {
   const countryCodes = Object.keys(countries);
   const validTeamCodes = Object.keys(teams); // Only valid IPL teams
-  
+
   const hasQuestionsForCountry = (countryCode: string): boolean => {
     const byTeam = (playerList as any)[countryCode];
     if (!byTeam) return false;
@@ -1306,7 +1306,7 @@ export function getRandomStartOptions(count: number = 3): { countries: string[];
       (arr) => Array.isArray(arr) && (arr as unknown[]).length > 0
     );
   };
-  
+
   const shuffleArray = <T,>(array: T[]): T[] => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -1316,40 +1316,67 @@ export function getRandomStartOptions(count: number = 3): { countries: string[];
     return shuffled;
   };
 
-  // Try up to 30 times to find 3x3 combo (else fallback to a default)
-  for(let attempt = 0; attempt < 30; attempt++) {
-    const validCountries = countryCodes.filter(hasQuestionsForCountry);
-    const shuffledCountries = shuffleArray(validCountries);
-    const selectedCountries = shuffledCountries.slice(0, Math.min(count, shuffledCountries.length));
-    if(selectedCountries.length < 3) continue;
-    const teamsWithAllCountries = new Set<string>();
-    const firstCountry = selectedCountries[0];
-    const firstCountryTeams = (playerList as any)[firstCountry];
-    if (firstCountryTeams) {
-      Object.keys(firstCountryTeams).forEach((teamCode) => {
-        const arr = firstCountryTeams[teamCode] as unknown[] | undefined;
-        if (Array.isArray(arr) && arr.length > 0 && validTeamCodes.includes(teamCode)) {
-          const hasAllCountries = selectedCountries.every((countryCode) => {
-            const byTeam = (playerList as any)[countryCode];
-            if (!byTeam || !byTeam[teamCode]) return false;
-            const players = byTeam[teamCode] as unknown[];
-            return Array.isArray(players) && players.length > 0;
-          });
-          if (hasAllCountries) {
-            teamsWithAllCountries.add(teamCode);
-          }
-        }
-      });
-    }
-    const availableTeams = Array.from(teamsWithAllCountries);
-    const shuffledTeams = shuffleArray(availableTeams);
-    if (shuffledTeams.length >= 3) {
-      return { countries: selectedCountries, teams: shuffledTeams.slice(0, 3) };
+  const pickN = <T,>(arr: T[], n: number): T[] => shuffleArray(arr).slice(0, Math.min(n, arr.length));
+
+  const eligibleCountriesForTeams = (teamSet: string[]): string[] => {
+    return countryCodes.filter((countryCode) => {
+      const byTeam = (playerList as any)[countryCode];
+      if (!byTeam) return false;
+      return teamSet.every((team) => Array.isArray(byTeam[team]) && byTeam[team].length > 0);
+    });
+  };
+
+  // Attempt 1: TEAMS-FIRST to ensure teams have uniform chance
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const chosenTeams = pickN(validTeamCodes, count);
+    if (chosenTeams.length < count) continue;
+    const eligibleCountries = eligibleCountriesForTeams(chosenTeams);
+    if (eligibleCountries.length >= count) {
+      const chosenCountries = pickN(eligibleCountries, count);
+      if (chosenCountries.length === count) {
+        return { countries: chosenCountries, teams: chosenTeams };
+      }
     }
   }
-  // Fallback: pick first 3 from biggest intersections
-  return {
-    countries: countryCodes.slice(0, 3),
-    teams: validTeamCodes.slice(0, 3),
-  };
+
+  // Attempt 2: COUNTRIES-FIRST (fallback) then uniform pick of teams from intersection
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const validCountries = countryCodes.filter(hasQuestionsForCountry);
+    const chosenCountries = pickN(validCountries, count);
+    if (chosenCountries.length < count) continue;
+
+    // Intersection of teams across chosen countries
+    const intersection = validTeamCodes.filter((team) =>
+      chosenCountries.every((country) => {
+        const byTeam = (playerList as any)[country];
+        return byTeam && Array.isArray(byTeam[team]) && byTeam[team].length > 0;
+      })
+    );
+
+    if (intersection.length >= count) {
+      const chosenTeams = pickN(intersection, count);
+      if (chosenTeams.length === count) {
+        return { countries: chosenCountries, teams: chosenTeams };
+      }
+    }
+  }
+
+  // Ultimate fallback: deterministic small set to avoid app break (still valid intersection)
+  // Find any triple of teams and countries that intersect
+  for (let t1 of validTeamCodes) {
+    for (let t2 of validTeamCodes) {
+      if (t2 === t1) continue;
+      for (let t3 of validTeamCodes) {
+        if (t3 === t1 || t3 === t2) continue;
+        const trio = [t1, t2, t3];
+        const elig = eligibleCountriesForTeams(trio);
+        if (elig.length >= 3) {
+          return { countries: elig.slice(0, 3), teams: trio };
+        }
+      }
+    }
+  }
+
+  // Last resort: return first 3 each (may reduce availability but prevents crash)
+  return { countries: countryCodes.slice(0, 3), teams: validTeamCodes.slice(0, 3) };
 }

@@ -4,8 +4,14 @@ import QuestionModal from './components/QuestionModal'
 import GameHeader from './components/GameHeader'
 import GameOverModal from './components/GameOverModal'
 import GameFooter from './components/GameFooter'
+import AuthGate from './components/AuthGate'
+import Landing from './components/Landing'
+import AuthPage from './components/AuthPage'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { playerList, teams, countries, getRandomStartOptions } from './data/questions'
 import { checkWinner, initializeBoard } from './utils/gameUtils'
+import OnlineRoomPanel from './components/OnlineRoomPanel'
+import { RoomState, subscribeRoom, updateRoom } from './services/rooms'
 
 // Function to select random teams and countries that have available players
 const selectRandomCombinations = () => {
@@ -26,6 +32,7 @@ const selectRandomCombinations = () => {
 }
 
 export default function App() {
+  const location = useLocation()
   const [board, setBoard] = useState<Record<string, Record<string, string | null>>>({})
   const [currentPlayer, setCurrentPlayer] = useState('X')
   const [selectedCell, setSelectedCell] = useState<{ country: string; team: string } | null>(null)
@@ -38,6 +45,9 @@ export default function App() {
   const [selectedTeams, setSelectedTeams] = useState<Record<string, string>>({})
   const [selectedCountries, setSelectedCountries] = useState<Record<string, string>>({})
   const [wrongCell, setWrongCell] = useState<{ country: string; team: string } | null>(null)
+  const [roomId, setRoomId] = useState<string | null>(null)
+  const [myMark, setMyMark] = useState<'X' | 'O' | null>(null)
+  const isOnline = location.pathname.startsWith('/online') && roomId
 
   useEffect(() => {
     const { randomTeams, randomCountries } = selectRandomCombinations()
@@ -62,12 +72,25 @@ export default function App() {
       setScores(s => ({ ...s, [currentPlayer]: s[currentPlayer as keyof typeof s] + 1 }))
       const w = checkWinner(nb, selectedTeams, selectedCountries)
       if (w) { setWinner(w); setGameOver(true) } else { setCurrentPlayer(p => (p === 'X' ? 'O' : 'X')) }
+      if (isOnline && roomId) {
+        const payload: Partial<RoomState> = {
+          board: nb,
+          scores: { ...scores, [currentPlayer]: scores[currentPlayer as keyof typeof scores] + 1 },
+          currentPlayer: currentPlayer === 'X' ? 'O' : 'X',
+          winner: w,
+          gameOver: !!w,
+        }
+        updateRoom(roomId, payload)
+      }
       setSelectedCell(null)
       setShowQuestion(false)
     } else {
       // Show wrongCell feedback for a second, then clear
       setWrongCell(selectedCell)
       setCurrentPlayer(p => (p === 'X' ? 'O' : 'X'))
+      if (isOnline && roomId) {
+        updateRoom(roomId, { currentPlayer: currentPlayer === 'X' ? 'O' : 'X' })
+      }
       setSelectedCell(null)
       setShowQuestion(false)
       setTimeout(() => setWrongCell(null), 1000)
@@ -91,39 +114,115 @@ export default function App() {
 
   const availablePlayers = selectedCell ? (playerList[selectedCell.country as keyof typeof playerList] as any)?.[selectedCell.team] : null
 
+  // Subscribe to room updates when in online mode
+  useEffect(() => {
+    if (!roomId) return
+    const unsub = subscribeRoom(roomId, (state) => {
+      setBoard(state.board)
+      setSelectedTeams(state.selectedTeams)
+      setSelectedCountries(state.selectedCountries)
+      setTeamOrder(state.teamOrder)
+      setCountryOrder(state.countryOrder)
+      setCurrentPlayer(state.currentPlayer)
+      setScores(state.scores)
+      setWinner(state.winner)
+      setGameOver(state.gameOver)
+    })
+    return () => unsub()
+  }, [roomId])
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-900 via-fuchsia-900 to-pink-900 py-8 px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-purple-500/10 to-pink-500/10 animate-gradient" style={{ backgroundSize: '200% 200%' }} />
-
-      <div className="absolute top-10 left-10 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl animate-float" />
-      <div className="absolute top-40 right-20 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
-      <div className="absolute bottom-20 left-40 w-80 h-80 bg-orange-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
-      <div className="absolute bottom-40 right-40 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '3s' }} />
-
-      <div className="max-w-6xl mx-auto relative z-10">
-        <GameHeader currentPlayer={currentPlayer} scores={scores} />
-        <Board
-          board={board}
-          onCellClick={handleCellClick}
-          selectedCell={selectedCell}
-          teams={selectedTeams}
-          countries={selectedCountries}
-          teamOrder={teamOrder}
-          countryOrder={countryOrder}
-          wrongCell={wrongCell}
-        />
-        {gameOver && <GameOverModal winner={winner} onReset={resetGame} />}
-        <QuestionModal
-          isOpen={showQuestion}
-          players={availablePlayers}
-          onSubmit={handleAnswerSubmit}
-          onClose={() => handleAnswerSubmit(false)}
-          currentPlayer={currentPlayer}
-          country={selectedCell?.country}
-          team={selectedCell?.team}
-        />
-        <GameFooter onReset={resetGame} />
-      </div>
-    </div>
+    <>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/offline" element={
+          <div className="min-h-screen bg-gradient-to-br from-violet-900 via-fuchsia-900 to-pink-900 py-8 px-4 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-purple-500/10 to-pink-500/10 animate-gradient" style={{ backgroundSize: '200% 200%' }} />
+            <div className="absolute top-10 left-10 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl animate-float" />
+            <div className="absolute top-40 right-20 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
+            <div className="absolute bottom-20 left-40 w-80 h-80 bg-orange-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
+            <div className="absolute bottom-40 right-40 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '3s' }} />
+            <div className="max-w-6xl mx-auto relative z-10">
+              <div className="mb-3"><a className="px-3 py-2 rounded-lg bg-white/10 border-2 border-white/20 text-white font-bold" href="/">← Back to Home</a></div>
+              <GameHeader currentPlayer={currentPlayer} scores={scores} />
+              <Board
+                board={board}
+                onCellClick={handleCellClick}
+                selectedCell={selectedCell}
+                teams={selectedTeams}
+                countries={selectedCountries}
+                teamOrder={teamOrder}
+                countryOrder={countryOrder}
+                wrongCell={wrongCell}
+              />
+              {gameOver && <GameOverModal winner={winner} onReset={resetGame} />}
+              <QuestionModal
+                isOpen={showQuestion}
+                players={availablePlayers}
+                onSubmit={handleAnswerSubmit}
+                onClose={() => handleAnswerSubmit(false)}
+                currentPlayer={currentPlayer}
+                country={selectedCell?.country}
+                team={selectedCell?.team}
+              />
+              <GameFooter onReset={resetGame} />
+            </div>
+          </div>
+        } />
+        <Route path="/online" element={
+          <div className="min-h-screen bg-gradient-to-br from-violet-900 via-fuchsia-900 to-pink-900 py-8 px-4 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-purple-500/10 to-pink-500/10 animate-gradient" style={{ backgroundSize: '200% 200%' }} />
+            <div className="absolute top-10 left-10 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl animate-float" />
+            <div className="absolute top-40 right-20 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
+            <div className="absolute bottom-20 left-40 w-80 h-80 bg-orange-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
+            <div className="absolute bottom-40 right-40 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '3s' }} />
+            <div className="max-w-6xl mx-auto relative z-10">
+              <div className="mb-3"><a className="px-3 py-2 rounded-lg bg-white/10 border-2 border-white/20 text-white font-bold" href="/">← Back to Home</a></div>
+              {!roomId && (
+                <OnlineRoomPanel
+                  buildInitialState={() => ({
+                    board: initializeBoard(selectedCountries, selectedTeams),
+                    selectedTeams,
+                    selectedCountries,
+                    teamOrder,
+                    countryOrder,
+                    currentPlayer,
+                    scores,
+                    gameOver,
+                    winner,
+                    players: {},
+                    status: 'waiting',
+                  })}
+                  onReady={(id, mark) => { setRoomId(id); setMyMark(mark) }}
+                />
+              )}
+              <GameHeader currentPlayer={currentPlayer} scores={scores} />
+              <Board
+                board={board}
+                onCellClick={handleCellClick}
+                selectedCell={selectedCell}
+                teams={selectedTeams}
+                countries={selectedCountries}
+                teamOrder={teamOrder}
+                countryOrder={countryOrder}
+                wrongCell={wrongCell}
+              />
+              {gameOver && <GameOverModal winner={winner} onReset={resetGame} />}
+              <QuestionModal
+                isOpen={showQuestion}
+                players={availablePlayers}
+                onSubmit={handleAnswerSubmit}
+                onClose={() => handleAnswerSubmit(false)}
+                currentPlayer={currentPlayer}
+                country={selectedCell?.country}
+                team={selectedCell?.team}
+              />
+              <GameFooter onReset={resetGame} />
+            </div>
+          </div>
+        } />
+      </Routes>
+    </>
   )
 }
