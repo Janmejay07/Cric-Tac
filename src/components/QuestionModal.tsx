@@ -17,28 +17,32 @@ export default function QuestionModal({ isOpen, players, onSubmit, onClose, curr
   const [selected, setSelected] = useState('')
   const [feedback, setFeedback] = useState('')
   const [remaining, setRemaining] = useState(30)
+  const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
     if (!isOpen) return
     setRemaining(30)
+    setSubmitted(false)
   }, [isOpen])
-
+  
+  // Timeout/auto fail
   useEffect(() => {
     if (!isOpen) return
-    if (remaining <= 0) {
+    if (remaining <= 0 && !submitted) {
       setFeedback('⏳ Time\'s up!')
+      setSubmitted(true)
       const t = setTimeout(() => {
         onSubmit(false)
         setSelected('')
         setSearch('')
         setFeedback('')
-        onClose()
+        // don't call onClose here; parent closes it
       }, 800)
       return () => clearTimeout(t)
     }
     const timer = setInterval(() => setRemaining((s) => s - 1), 1000)
     return () => clearInterval(timer)
-  }, [isOpen, remaining, onSubmit, onClose])
+  }, [isOpen, remaining, submitted, onSubmit])
 
   if (!isOpen || !players) return null
 
@@ -46,10 +50,12 @@ export default function QuestionModal({ isOpen, players, onSubmit, onClose, curr
   const filteredPlayers = search ? suggestPlayers(search, 50) : []
 
   const handle = () => {
+    if (submitted) return
     if (!selected) {
       setFeedback('Please select a player!')
       return
     }
+    setSubmitted(true)
     const ok = players.includes(selected)
     setFeedback(ok ? '✅ Correct!' : '❌ Wrong!')
     setTimeout(() => {
@@ -57,7 +63,7 @@ export default function QuestionModal({ isOpen, players, onSubmit, onClose, curr
       setSelected('')
       setSearch('')
       setFeedback('')
-      onClose()
+      // don't call onClose here; parent closes it
     }, 1000)
   }
 

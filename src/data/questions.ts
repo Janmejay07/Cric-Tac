@@ -1298,15 +1298,15 @@ export const countries = {
 export function getRandomStartOptions(count: number = 3): { countries: string[]; teams: string[] } {
   const countryCodes = Object.keys(countries);
   const validTeamCodes = Object.keys(teams); // Only valid IPL teams
-
-  // Check if a country has any players in any team
+  
   const hasQuestionsForCountry = (countryCode: string): boolean => {
     const byTeam = (playerList as any)[countryCode];
     if (!byTeam) return false;
-    return Object.values(byTeam).some((arr) => Array.isArray(arr) && (arr as unknown[]).length > 0);
+    return Object.values(byTeam).some(
+      (arr) => Array.isArray(arr) && (arr as unknown[]).length > 0
+    );
   };
-
-  // Fisher–Yates shuffle helper
+  
   const shuffleArray = <T,>(array: T[]): T[] => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -1316,40 +1316,40 @@ export function getRandomStartOptions(count: number = 3): { countries: string[];
     return shuffled;
   };
 
-  // STEP 1: Filter countries that have players, then randomly select 3
-  const validCountries = countryCodes.filter(hasQuestionsForCountry);
-  const shuffledCountries = shuffleArray(validCountries);
-  const selectedCountries = shuffledCountries.slice(0, Math.min(count, shuffledCountries.length));
-
-  // STEP 2: Find teams that have players from ALL selected countries (intersection)
-  const teamsWithAllCountries = new Set<string>();
-
-  // Get teams from first country as base
-  const firstCountry = selectedCountries[0];
-  const firstCountryTeams = (playerList as any)[firstCountry];
-
-  if (firstCountryTeams) {
-    Object.keys(firstCountryTeams).forEach((teamCode) => {
-      const arr = firstCountryTeams[teamCode] as unknown[] | undefined;
-      if (Array.isArray(arr) && arr.length > 0 && validTeamCodes.includes(teamCode)) {
-        // Ensure this team has players for ALL selected countries
-        const hasAllCountries = selectedCountries.every((countryCode) => {
-          const byTeam = (playerList as any)[countryCode];
-          if (!byTeam || !byTeam[teamCode]) return false;
-          const players = byTeam[teamCode] as unknown[];
-          return Array.isArray(players) && players.length > 0;
-        });
-        if (hasAllCountries) {
-          teamsWithAllCountries.add(teamCode);
+  // Try up to 30 times to find 3x3 combo (else fallback to a default)
+  for(let attempt = 0; attempt < 30; attempt++) {
+    const validCountries = countryCodes.filter(hasQuestionsForCountry);
+    const shuffledCountries = shuffleArray(validCountries);
+    const selectedCountries = shuffledCountries.slice(0, Math.min(count, shuffledCountries.length));
+    if(selectedCountries.length < 3) continue;
+    const teamsWithAllCountries = new Set<string>();
+    const firstCountry = selectedCountries[0];
+    const firstCountryTeams = (playerList as any)[firstCountry];
+    if (firstCountryTeams) {
+      Object.keys(firstCountryTeams).forEach((teamCode) => {
+        const arr = firstCountryTeams[teamCode] as unknown[] | undefined;
+        if (Array.isArray(arr) && arr.length > 0 && validTeamCodes.includes(teamCode)) {
+          const hasAllCountries = selectedCountries.every((countryCode) => {
+            const byTeam = (playerList as any)[countryCode];
+            if (!byTeam || !byTeam[teamCode]) return false;
+            const players = byTeam[teamCode] as unknown[];
+            return Array.isArray(players) && players.length > 0;
+          });
+          if (hasAllCountries) {
+            teamsWithAllCountries.add(teamCode);
+          }
         }
-      }
-    });
+      });
+    }
+    const availableTeams = Array.from(teamsWithAllCountries);
+    const shuffledTeams = shuffleArray(availableTeams);
+    if (shuffledTeams.length >= 3) {
+      return { countries: selectedCountries, teams: shuffledTeams.slice(0, 3) };
+    }
   }
-
-  // STEP 3: Convert to array and randomly select 3 teams
-  const availableTeams = Array.from(teamsWithAllCountries);
-  const shuffledTeams = shuffleArray(availableTeams);
-  const selectedTeams = shuffledTeams.slice(0, Math.min(count, shuffledTeams.length));
-
-  return { countries: selectedCountries, teams: selectedTeams };
+  // Fallback: pick first 3 from biggest intersections
+  return {
+    countries: countryCodes.slice(0, 3),
+    teams: validTeamCodes.slice(0, 3),
+  };
 }

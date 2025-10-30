@@ -37,6 +37,7 @@ export default function App() {
   const [countryOrder, setCountryOrder] = useState<string[]>([])
   const [selectedTeams, setSelectedTeams] = useState<Record<string, string>>({})
   const [selectedCountries, setSelectedCountries] = useState<Record<string, string>>({})
+  const [wrongCell, setWrongCell] = useState<{ country: string; team: string } | null>(null)
 
   useEffect(() => {
     const { randomTeams, randomCountries } = selectRandomCombinations()
@@ -48,7 +49,7 @@ export default function App() {
   }, [])
 
   const handleCellClick = (country: string, team: string) => {
-    if (gameOver || board[country]?.[team]) return
+    if (gameOver || board[country]?.[team] || wrongCell) return
     setSelectedCell({ country, team })
     setShowQuestion(true)
   }
@@ -61,11 +62,16 @@ export default function App() {
       setScores(s => ({ ...s, [currentPlayer]: s[currentPlayer as keyof typeof s] + 1 }))
       const w = checkWinner(nb, selectedTeams, selectedCountries)
       if (w) { setWinner(w); setGameOver(true) } else { setCurrentPlayer(p => (p === 'X' ? 'O' : 'X')) }
+      setSelectedCell(null)
+      setShowQuestion(false)
     } else {
+      // Show wrongCell feedback for a second, then clear
+      setWrongCell(selectedCell)
       setCurrentPlayer(p => (p === 'X' ? 'O' : 'X'))
+      setSelectedCell(null)
+      setShowQuestion(false)
+      setTimeout(() => setWrongCell(null), 1000)
     }
-    setSelectedCell(null)
-    setShowQuestion(false)
   }
 
   const resetGame = () => {
@@ -104,13 +110,14 @@ export default function App() {
           countries={selectedCountries}
           teamOrder={teamOrder}
           countryOrder={countryOrder}
+          wrongCell={wrongCell}
         />
         {gameOver && <GameOverModal winner={winner} onReset={resetGame} />}
         <QuestionModal
           isOpen={showQuestion}
           players={availablePlayers}
           onSubmit={handleAnswerSubmit}
-          onClose={() => { handleAnswerSubmit(false) }}
+          onClose={() => handleAnswerSubmit(false)}
           currentPlayer={currentPlayer}
           country={selectedCell?.country}
           team={selectedCell?.team}
