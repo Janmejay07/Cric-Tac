@@ -500,6 +500,7 @@ export const countries = {
           "Prabhsimran Singh",
           "Jitesh Sharma",
           "Harpreet Brar",
+          "Shreyas Iyer",
           "Rahul Chahar",
           "Arshdeep Singh",
           "Harshneet Singh",
