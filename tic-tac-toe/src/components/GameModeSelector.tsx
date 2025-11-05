@@ -1,16 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { GameMode } from '@/utils/gameUtils'
 import { Globe, Users, Shuffle } from 'lucide-react'
 
 interface GameModeSelectorProps {
   onSelectMode: (mode: GameMode) => void
   currentMode?: GameMode
+  disabled?: boolean
 }
 
-export function GameModeSelector({ onSelectMode, currentMode }: GameModeSelectorProps) {
+export function GameModeSelector({ onSelectMode, currentMode, disabled = false }: GameModeSelectorProps) {
   const [selectedMode, setSelectedMode] = useState<GameMode>(currentMode || 'country-x-ipl')
+
+  // Sync with currentMode prop changes
+  useEffect(() => {
+    if (currentMode) {
+      setSelectedMode(currentMode)
+    }
+  }, [currentMode])
 
   const modes: { value: GameMode; label: string; description: string; icon: typeof Globe }[] = [
     {
@@ -45,10 +53,12 @@ export function GameModeSelector({ onSelectMode, currentMode }: GameModeSelector
             return (
               <button
                 key={mode.value}
-                onClick={() => handleModeSelect(mode.value)}
+                onClick={() => !disabled && handleModeSelect(mode.value)}
+                disabled={disabled}
                 className={`
                   relative p-4 sm:p-5 rounded-xl border-2 transition-all duration-300 w-full max-w-[360px]
                   flex flex-col items-center gap-2 sm:gap-3
+                  ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                   ${
                     isSelected
                       ? 'bg-gradient-to-br from-emerald-500/20 to-blue-500/20 border-emerald-400 shadow-lg shadow-emerald-500/30 scale-105'

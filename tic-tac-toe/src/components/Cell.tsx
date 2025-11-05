@@ -34,8 +34,9 @@ export function Cell({ cell, onClick, currentPlayer, teamOrder, countryOrder, ga
   } else {
     // For country-x-ipl: row is country, col is team
     const countryName = countryNames[cell.country] || cell.country
-    displayTop = `${countryName} ${cell.country}`
-    displayBottom = cell.team
+    const teamName = teamNames[cell.team] || cell.team
+    displayTop = countryName
+    displayBottom = teamName
   }
 
   return (

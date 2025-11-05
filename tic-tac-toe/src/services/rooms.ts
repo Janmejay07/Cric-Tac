@@ -75,11 +75,13 @@ export interface RoomState {
   scores: { X: number; O: number }
   gameOver: boolean
   winner: 'X' | 'O' | 'draw' | null
+  gameMode?: 'country-x-ipl' | 'ipl-x-ipl'
   players: {
     X: string | null // user ID
     O: string | null
   }
-  status: 'waiting' | 'active' | 'finished'
+  status: 'waiting' | 'active' | 'finished' | 'opponent_left'
+  leftBy?: 'X' | 'O' | null // Which player left the room
   createdAt: any
   updatedAt: any
 }
@@ -147,6 +149,7 @@ export function createRoomStateFromGameState(
     scores: gameState.scores,
     gameOver: gameState.gameOver || false,
     winner: gameState.winner,
+    gameMode: gameState.gameMode,
     players,
     status,
   }
@@ -164,6 +167,7 @@ export function roomStateToGameState(room: RoomState): GameState {
     scores: room.scores,
     gameOver: room.gameOver,
     winner: room.winner,
+    gameMode: room.gameMode || 'country-x-ipl',
   }
 }
 
@@ -193,15 +197,42 @@ export async function joinRoom(roomId: string, userId: string): Promise<RoomStat
       throw new RoomError('This room has already finished.', 'ROOM_FINISHED')
     }
     
-    // Check if user is trying to join their own room
-    if (data.players.X === userId || data.players.O === userId) {
-      throw new RoomError('You are already in this room.', 'ALREADY_IN_ROOM')
+    // Check if user is rejoining (was in the room before)
+    let player: 'X' | 'O' | null = null
+    let isRejoin = false
+    
+    if (data.players.X === userId) {
+      player = 'X'
+      isRejoin = true
+    } else if (data.players.O === userId) {
+      player = 'O'
+      isRejoin = true
     }
     
-    // Assign player
-    let player: 'X' | 'O' = 'X'
+    // If rejoining and status is opponent_left, reactivate the game
+    if (isRejoin && data.status === 'opponent_left') {
+      await retryOperation(() => updateDoc(roomRef, {
+        status: 'active',
+        leftBy: null,
+        updatedAt: serverTimestamp(),
+      }))
+      const updatedSnap = await getDoc(roomRef)
+      if (!updatedSnap.exists()) {
+        throw new RoomError('Room was deleted while rejoining.', 'ROOM_DELETED')
+      }
+      return updatedSnap.data() as RoomState
+    }
+    
+    // If already in room and game is active, just return
+    if (isRejoin) {
+      return data
+    }
+    
+    // Assign player to empty slot
     if (data.players.X && !data.players.O) {
       player = 'O'
+    } else if (!data.players.X && !data.players.O) {
+      player = 'X'
     } else if (data.players.X && data.players.O) {
       throw new RoomError('Room is full. Please join another room.', 'ROOM_FULL')
     }
@@ -212,6 +243,7 @@ export async function joinRoom(roomId: string, userId: string): Promise<RoomStat
     await retryOperation(() => updateDoc(roomRef, {
       [`players.${player}`]: userId,
       status: shouldActivate ? 'active' : data.status,
+      leftBy: null, // Clear leftBy when someone joins
       updatedAt: serverTimestamp(),
     }))
     

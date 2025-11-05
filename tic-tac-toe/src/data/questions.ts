@@ -673,6 +673,7 @@ export const playerList: Record<string, Record<string, string[]>> = {
       "Prasidh Krishna",
       "Vinay Kumar",
       "Sarabjit Ladda",
+      "Siddhesh Lad",
       "Shivam Mavi",
       "Kamlesh Nagarkoti",
       "Nikhil Naik",
