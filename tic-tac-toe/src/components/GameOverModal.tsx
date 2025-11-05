@@ -6,7 +6,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '../components/ui/dialog'
 import { X, Circle, Trophy, Sparkles } from 'lucide-react'
 
 interface GameOverModalProps {

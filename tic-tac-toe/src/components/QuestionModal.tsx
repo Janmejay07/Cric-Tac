@@ -5,11 +5,11 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '../components/ui/dialog'
 import { Search, X, Circle, Send, Target } from 'lucide-react'
-import { playerList } from '@/data/questions'
-import { countryNames, teamNames } from '@/data/mappings' // ✅ Import to convert code to name
-import type { GameMode } from '@/utils/gameUtils'
+import { playerList } from '../data/questions'
+import { countryNames, teamNames } from '../data/mappings' // ✅ Import to convert code to name
+import type { GameMode } from '../utils/gameUtils'
 
 interface QuestionModalProps {
   open: boolean
@@ -242,18 +242,8 @@ export function QuestionModal({
     const rowTeamName = teamNames[country] || country
     const colTeamName = teamDisplayName
     categoryDisplay = `${rowTeamName} × ${colTeamName}`
-  } else if (gameMode === 'both') {
-    const countryIsTeam = teamNames[country] !== undefined
-    const teamIsTeam = teamNames[team] !== undefined
-    
-    if (countryIsTeam && teamIsTeam) {
-      categoryDisplay = `${teamNames[country] || country} × ${teamDisplayName}`
-    } else if (countryIsTeam && !teamIsTeam) {
-      categoryDisplay = `${teamNames[country] || country} × ${countryDisplayName}`
-    } else {
-      categoryDisplay = `${countryDisplayName} × ${team}`
-    }
-  } else {
+  }
+   else {
     categoryDisplay = `${countryDisplayName} × ${team}`
   }
 

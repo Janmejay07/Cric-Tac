@@ -249,7 +249,6 @@ export async function updateRoom(
     
     // Verify room exists before updating
     const roomSnap = await retryOperation(() => getDoc(roomRef))
-    const roomSnap = await retryOperation(() => getDoc(roomRef))
     if (!roomSnap.exists()) {
       throw new RoomError('Room not found. It may have been deleted.', 'ROOM_NOT_FOUND')
     }
