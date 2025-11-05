@@ -15,7 +15,7 @@ interface BoardProps {
 
 export function Board({ board, onCellClick, currentPlayer, teamOrder, countryOrder, gameMode = 'country-x-ipl' }: BoardProps) {
   const isIPLxIPL = gameMode === 'ipl-x-ipl'
-  const isMixed = gameMode === 'both'
+  const isMixed = false
   
   // Determine header text
   const topLeftText = isIPLxIPL ? 'Team × Team' : isMixed ? 'Mixed' : 'Country × Team'
